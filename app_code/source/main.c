@@ -14,6 +14,7 @@
 int _strcmp(char*, char*);
 
 char console_buffer[4096];
+char console_low_buffer[4096];
 
 Result _HBSPECIAL_GetHandle(Handle handle, u32 index, Handle* out)
 {
@@ -47,11 +48,12 @@ void gspGpuInit()
 
 	Result ret = GSPGPU_AcquireRight(NULL, 0x0);
 	if(ret)*(u32*)0xBADBABE0 = ret;
-	GSPGPU_SetLcdForceBlack(NULL, 0x0);
+	//Retain the image on top screen
+	//GSPGPU_SetLcdForceBlack(NULL, 0x0);
 
 	//set subscreen to blue
-	u32 regData=0x01FF0000;
-	GSPGPU_WriteHWRegs(NULL, 0x202A04, &regData, 4);
+	//u32 regData=0x01FF0000;
+	//GSPGPU_WriteHWRegs(NULL, 0x202A04, &regData, 4);
 
 	//setup our gsp shared mem section
 	u8 threadID;
@@ -124,6 +126,14 @@ void centerString(char* str, int y)
 	GSPGPU_FlushDataCache(NULL, top_framebuffer, 240*400*3);
 }
 
+void centerLowString(char* str, int y)
+{
+	int x = 160 - (strlen(str) * 4);
+	drawString(low_framebuffer, str, x, y);
+	GSPGPU_FlushDataCache(NULL, low_framebuffer, 240*320*3);
+}
+
+
 void drawHex(u32 val, int x, int y)
 {
 	char str[9];
@@ -138,6 +148,13 @@ void clearScreen(u8 shade)
 	GSPGPU_FlushDataCache(NULL, top_framebuffer, 240*400*3);
 }
 
+void clearLowScreen(u8 shade)
+{
+	memset(low_framebuffer, shade, 240*320*3);
+	GSPGPU_FlushDataCache(NULL, low_framebuffer, 240*320*3);
+}
+
+
 void drawTitleScreen(char* str)
 {
 	clearScreen(0x00);
@@ -147,10 +164,24 @@ void drawTitleScreen(char* str)
 	renderString(str, 0, 40);
 }
 
+void drawLowScreen(char* str)
+{
+	clearLowScreen(0x00);
+	centerLowString("Loading", 40);
+	centerLowString(HAX_NAME_VERSION, 50);
+	centerLowString(BUILDTIME, 60);
+}
+
 void resetConsole(void)
 {
 	console_buffer[0] = 0x00;
 	drawTitleScreen(console_buffer);
+}
+
+void resetLowConsole(void)
+{
+	console_low_buffer[0] = 0x00;
+	drawLowScreen(console_low_buffer);
 }
 
 void print_str(char* str)
@@ -341,7 +372,7 @@ void receive_handle(Handle* out, char* name)
 
 	append_str("\ngot handle : ");
 	append_str((char*)outbuf); append_str("\n");
-	print_hex(*out);
+	//print_hex(*out);
 }
 
 void _main()
@@ -354,17 +385,18 @@ void _main()
 	srv_RegisterClient(NULL);
 
 	gspGpuInit();
-
-	resetConsole();
-	print_str("hello\n");
-	print_hex(_bootloaderAddress);
+	//resetConsole();
+	//print_str("hello\n");
+	//print_hex(_bootloaderAddress);
 
 	__apt_initservicehandle();
 	ret=_APT_GetLockHandle(&_aptuHandle, 0x0, &_aptLockHandle);
 	svc_closeHandle(_aptuHandle);
 
-	print_str("\ngot APT:A lock handle ?\n");
-	print_hex(ret); print_str(", "); print_hex(_aptuHandle); print_str(", "); print_hex(_aptLockHandle);
+	//Draw Loading info on subscreen
+	resetLowConsole();
+	//print_str("\ngot APT:A lock handle ?\n");
+	//print_hex(ret); print_str(", "); print_hex(_aptuHandle); print_str(", "); print_hex(_aptLockHandle);
 
 	receive_handle(&fsuHandle, "fs:USER");
 	receive_handle(&nssHandle, "ns:s");
